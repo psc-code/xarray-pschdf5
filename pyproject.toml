@@ -30,7 +30,10 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = []
+dependencies = [
+  "pugixml >= 0.5.0",
+  "h5py",
+]
 
 [project.optional-dependencies]
 test = [
@@ -55,6 +58,8 @@ Homepage = "https://github.com/psc-code/xarray-pschdf5"
 Discussions = "https://github.com/psc-code/xarray-pschdf5/discussions"
 Changelog = "https://github.com/psc-code/xarray-pschdf5/releases"
 
+[project.entry-points."xarray.backends"]
+pschdf5 = "xarray_pschdf5:PscHdf5Entrypoint"
 
 [tool.scikit-build]
 minimum-version = "0.4"
