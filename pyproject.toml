@@ -33,6 +33,7 @@ dynamic = ["version"]
 dependencies = [
   "pugixml >= 0.5.0",
   "h5py",
+  "xarray",
 ]
 
 [project.optional-dependencies]
