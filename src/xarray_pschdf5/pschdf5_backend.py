@@ -109,17 +109,18 @@ def read_xdmf(filename):
 
             geometry = node.child("Geometry")
             assert geometry.attribute("GeometryType").value() == "Origin_DxDyDz"
+
+            grid["geometry"] = dict()
             for child in geometry.children():
                 if child.attribute("Name").value() == "Origin":
-                    origin = np.asarray(
-                        [float(x) for x in child.text().as_string().split(" ")]
-                    )[::-1]
-                if child.attribute("Name").value() == "Spacing":
-                    spacing = np.asarray(
+                    grid["geometry"]["origin"] = np.asarray(
                         [float(x) for x in child.text().as_string().split(" ")]
                     )[::-1]
 
-            grid["geometry"] = {"origin": origin, "spacing": spacing}
+                if child.attribute("Name").value() == "Spacing":
+                    grid["geometry"]["spacing"] = np.asarray(
+                        [float(x) for x in child.text().as_string().split(" ")]
+                    )[::-1]
 
             flds = OrderedDict()
             for child in node.children():
