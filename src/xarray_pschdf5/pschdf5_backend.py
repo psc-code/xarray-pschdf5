@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from collections import OrderedDict
+from typing import Any, ClassVar
 
 import h5py
 import numpy as np
@@ -21,7 +22,7 @@ class PscHdf5Entrypoint(BackendEntrypoint):
     ):
         return pschdf5_open_dataset(filename_or_obj, drop_variables=drop_variables)
 
-    open_dataset_parameters = ["filename_or_obj", "drop_variables"]
+    open_dataset_parameters: ClassVar[Any] = ["filename_or_obj", "drop_variables"]
 
     def guess_can_open(self, filename_or_obj):
         if filename_or_obj.endswith(".xdmf"):
@@ -42,9 +43,12 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
 
     vars = dict()
     assert len(grids) == 1
-    for gridname, grid in grids.items():
+    for _, grid in grids.items():
         for fldname, fld in grid["fields"].items():
-            data_dims = fld["dims"]
+            if fldname in drop_variables:
+                continue
+
+            # data_dims = fld["dims"]
             data_path = fld["path"]
             h5_filename, h5_path = fld["path"].split(":")
             h5_file = h5py.File(dirname + "/" + h5_filename)
@@ -80,11 +84,7 @@ def read_xdmf(filename):
     doc = pugi.XMLDocument()
     result = doc.load_file(filename)
     if not result:
-        print(
-            "parse error: status=%r description=%r"
-            % (result.status, result.description())
-        )
-        assert False
+        raise f"parse error: status={result.status} description={result.description()}"
 
     grid_collection = doc.child("Xdmf").child("Domain").child("Grid")
     assert grid_collection.attribute("GridType").value() == "Collection"
