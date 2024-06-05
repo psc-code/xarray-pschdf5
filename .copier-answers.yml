@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 2024.03.10
+_src_path: gh:scientific-python/cookie
+backend: skbuild
+email: kai.germaschewski@gmail.com
+full_name: Kai Germaschewski
+license: BSD
+org: psc-code
+project_name: xarray-pschdf5
+project_short_description: XArray reader for PSC HDF5 data
+url: https://github.com/psc-code/xarray-pschdf5
+vcs: true
