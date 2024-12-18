@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 from collections import OrderedDict
 from typing import Any, ClassVar
 
@@ -24,11 +25,10 @@ class PscHdf5Entrypoint(BackendEntrypoint):
 
     open_dataset_parameters: ClassVar[Any] = ["filename_or_obj", "drop_variables"]
 
-    def guess_can_open(self, filename_or_obj):
-        if filename_or_obj.endswith(".xdmf"):
-            return True
+    def guess_can_open(self, filename_or_obj) -> bool:
+        filename_or_obj = pathlib.Path(filename_or_obj)
 
-        return False
+        return filename_or_obj.suffix == ".xdmf"
 
     description = "XArray reader for PSC HDF5 data"
 
