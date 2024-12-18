@@ -38,7 +38,6 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
     filename_or_obj = pathlib.Path(filename_or_obj)
     dirname = filename_or_obj.parent
     meta = read_xdmf(filename_or_obj)
-    meta["run"] = "RUN"
     grids = meta["grids"]
 
     if isinstance(drop_variables, str):
@@ -58,14 +57,14 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
             data_path = fld["path"]
             h5_filename, h5_path = fld["path"].split(":")
             h5_file = h5py.File(dirname / h5_filename)
-            data = h5_file[h5_path][:].T
+            data = h5_file[h5_path]
 
             data_attrs = dict(path=data_path)
             match len(data_dims):
                 case 2:
-                    dims = ("longs", "lats")
+                    dims = ("lats", "longs")
                 case 3:
-                    dims = ("x", "y", "z")
+                    dims = ("z", "y", "x")
             vars[fldname] = xr.DataArray(data=data, dims=dims, attrs=data_attrs)
 
     dims = grid["topology"]["dims"]
@@ -84,11 +83,16 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
             }
         case "2DSMesh":
             coords = {
-                "lats": ("lats", np.linspace(90, -90, dims[1])),
-                "longs": ("longs", np.linspace(-180, 180, dims[0])),
+                "lats": ("lats", np.linspace(90, -90, dims[0])),
+                "longs": ("longs", np.linspace(-180, 180, dims[1])),
+                "colats": ("lats", np.linspace(0, 180, dims[0])),
+                "mlts": ("longs", np.linspace(0, 24, dims[1])),
             }
 
-    attrs = dict(run=meta["run"], time=meta["time"])
+    attrs = dict(
+        elapsed_time=meta["time"],
+        time=np.datetime64("2000-01-01T00:00:00"),  # FIXME
+    )
 
     ds = xr.Dataset(vars, coords=coords, attrs=attrs)
     #    ds.set_close(my_close_method)
@@ -111,12 +115,12 @@ def _parse_geometry_origin_dxdydz(geometry):
         if child.attribute("Name").value() == "Origin":
             geo["origin"] = np.asarray(
                 [float(x) for x in child.text().as_string().split(" ")]
-            )[::-1]
+            )
 
         if child.attribute("Name").value() == "Spacing":
             geo["spacing"] = np.asarray(
                 [float(x) for x in child.text().as_string().split(" ")]
-            )[::-1]
+            )
     return geo
 
 
@@ -149,7 +153,7 @@ def read_xdmf(filename):
             grid = {}
             grid_name = node.attribute("Name").value()
             topology = node.child("Topology")
-            dims = _parse_dimensions_attr(topology)[::-1]
+            dims = _parse_dimensions_attr(topology)
             grid["topology"] = {
                 "type": topology.attribute("TopologyType").value(),
                 "dims": dims,
@@ -169,7 +173,7 @@ def read_xdmf(filename):
 
                 fld = child.attribute("Name").value()
                 item = child.child("DataItem")
-                fld_dims = _parse_dimensions_attr(item)[::-1]
+                fld_dims = _parse_dimensions_attr(item)
                 assert np.all(fld_dims == dims)
                 assert item.attribute("Format").value() == "HDF"
                 path = item.text().as_string().strip()
