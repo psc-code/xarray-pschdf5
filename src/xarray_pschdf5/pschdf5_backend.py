@@ -63,23 +63,30 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
             data_attrs = dict(path=data_path)
             match len(data_dims):
                 case 2:
-                    dims = ("lats", "longs")
+                    dims = ("longs", "lats")
                 case 3:
                     dims = ("x", "y", "z")
             vars[fldname] = xr.DataArray(data=data, dims=dims, attrs=data_attrs)
 
+    dims = grid["topology"]["dims"]
     match grid["topology"]["type"]:
         case "3DCoRectMesh":
             coords = {
-                "xyz"[d]: make_crd(
-                    grid["topology"]["dims"][d],
-                    grid["geometry"]["origin"][d],
-                    grid["geometry"]["spacing"][d],
+                "xyz"[d]: (
+                    "xyz"[d],
+                    make_crd(
+                        dims[d],
+                        grid["geometry"]["origin"][d],
+                        grid["geometry"]["spacing"][d],
+                    ),
                 )
                 for d in range(3)
             }
         case "2DSMesh":
-            coords = {}
+            coords = {
+                "lats": ("lats", np.linspace(90, -90, dims[1])),
+                "longs": ("longs", np.linspace(-180, 180, dims[0])),
+            }
 
     attrs = dict(run=meta["run"], time=meta["time"])
 
