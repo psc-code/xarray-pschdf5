@@ -49,7 +49,7 @@ Discussions = "https://github.com/psc-code/xarray-pschdf5/discussions"
 Changelog = "https://github.com/psc-code/xarray-pschdf5/releases"
 
 [project.entry-points."xarray.backends"]
-pschdf5 = "xarray_pschdf5:PscHdf5Entrypoint"
+pschdf5 = "xarray_pschdf5.pschdf5_backend:PscHdf5Entrypoint"
 
 [tool.scikit-build]
 minimum-version = "0.4"
