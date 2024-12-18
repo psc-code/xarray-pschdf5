@@ -36,15 +36,15 @@ class PscHdf5Entrypoint(BackendEntrypoint):
 
 def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
     filename_or_obj = pathlib.Path(filename_or_obj)
-    dirname = filename_or_obj.parent
-    meta = read_xdmf(filename_or_obj)
-    grids = meta["grids"]
-
     if isinstance(drop_variables, str):
         drop_variables = [drop_variables]
     elif drop_variables is None:
         drop_variables = []
     drop_variables = set(drop_variables)
+
+    dirname = filename_or_obj.parent
+    meta = read_xdmf(filename_or_obj)[0]
+    grids = meta["grids"]
 
     vars = dict()
     assert len(grids) == 1
@@ -134,14 +134,24 @@ def _parse_geometry_xyz(geometry):
     return geo
 
 
-def read_xdmf(filename):
-    doc = pugi.XMLDocument()
-    result = doc.load_file(filename)
-    if not result:
-        raise f"parse error: status={result.status} description={result.description()}"
+def _parse_temporal_collection(filename, grid_collection):
+    temporal = []
+    for node in grid_collection.children():
+        href = node.attribute("href").value()
+        doc = pugi.XMLDocument()
+        result = doc.load_file(filename.parent / href)
+        if not result:
+            msg = f"parse error: status={result.status} description={result.description()}"
+            raise RuntimeError(msg)
 
-    grid_collection = doc.child("Xdmf").child("Domain").child("Grid")
-    assert grid_collection.attribute("GridType").value() == "Collection"
+        temporal.append(
+            _parse_spatial_collection(doc.child("Xdmf").child("Domain").child("Grid"))
+        )
+
+    return temporal
+
+
+def _parse_spatial_collection(grid_collection):
     grid_time = grid_collection.child("Time")
     assert grid_time.attribute("Type").value() == "Single"
     time = grid_time.attribute("Value").value()
@@ -183,3 +193,20 @@ def read_xdmf(filename):
             rv["grids"][grid_name] = grid
 
     return rv
+
+
+def read_xdmf(filename):
+    doc = pugi.XMLDocument()
+    result = doc.load_file(filename)
+    if not result:
+        raise f"parse error: status={result.status} description={result.description()}"
+
+    grid_collection = doc.child("Xdmf").child("Domain").child("Grid")
+    assert grid_collection.attribute("GridType").value() == "Collection"
+    match grid_collection.attribute("CollectionType").value():
+        case "Spatial":
+            return [_parse_spatial_collection(grid_collection)]
+        case "Temporal":
+            return _parse_temporal_collection(filename, grid_collection)
+        case _:
+            raise RuntimeError()
