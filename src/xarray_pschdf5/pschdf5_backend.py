@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import pathlib
 from collections import OrderedDict
 from typing import Any, ClassVar
@@ -34,6 +35,16 @@ class PscHdf5Entrypoint(BackendEntrypoint):
     url = "https://link_to/your_backend/documentation"  # FIXME
 
 
+@dataclasses.dataclass
+class VariableInfo:
+    """Class for keeping track of per-variable info."""
+
+    shape: tuple
+    dims: tuple
+    times: list[np.datetime64] = dataclasses.field(default_factory=list)
+    paths: list[str] = dataclasses.field(default_factory=list)
+
+
 def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
     filename_or_obj = pathlib.Path(filename_or_obj)
     if isinstance(drop_variables, str):
@@ -43,30 +54,57 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
     drop_variables = set(drop_variables)
 
     dirname = filename_or_obj.parent
-    meta = read_xdmf(filename_or_obj)[0]
-    grids = meta["grids"]
+    meta = read_xdmf(filename_or_obj)
 
-    vars = dict()
-    assert len(grids) == 1
-    for _, grid in grids.items():
+    var_infos = {}
+    n_times = len(meta)
+    for spatial in meta:
+        grids = spatial["grids"]
+        assert len(grids) == 1
+        _, grid = next(iter(grids.items()))
         for fldname, fld in grid["fields"].items():
             if fldname in drop_variables:
                 continue
 
-            data_dims = fld["dims"]
-            data_path = fld["path"]
-            h5_filename, h5_path = fld["path"].split(":")
+            if fldname not in var_infos:
+                var_infos[fldname] = VariableInfo(
+                    shape=(n_times,) + fld["dims"], dims=_make_dims(fld)
+                )
+            time = np.datetime64("2000-01-01T00:00:00") + np.timedelta64(
+                int(spatial["time"]) * 1000000000, "ns"
+            )
+            var_infos[fldname].times.append(time)
+            var_infos[fldname].paths.append(fld["path"])
+
+    _, var_info = next(iter(var_infos.items()))
+    coords = _make_coords(grid, var_info.times)
+
+    vars = {}
+    for name, info in var_infos.items():
+        da = xr.DataArray(data=np.empty(info.shape), dims=info.dims)
+        for it, path in enumerate(info.paths):
+            h5_filename, h5_path = path.split(":")
             h5_file = h5py.File(dirname / h5_filename)
-            data = h5_file[h5_path]
+            da[it, :, :] = h5_file[h5_path]
 
-            data_attrs = dict(path=data_path)
-            match len(data_dims):
-                case 2:
-                    dims = ("lats", "longs")
-                case 3:
-                    dims = ("z", "y", "x")
-            vars[fldname] = xr.DataArray(data=data, dims=dims, attrs=data_attrs)
+        vars[name] = da
 
+    attrs = {}
+    ds = xr.Dataset(vars, coords=coords, attrs=attrs)
+    #    ds.set_close(my_close_method)
+
+    return ds
+
+
+def _make_dims(fld):
+    match len(fld["dims"]):
+        case 2:
+            return ("time", "lats", "longs")
+        case 3:
+            return ("time", "z", "y", "x")
+
+
+def _make_coords(grid, times):  # ("topology"), grid["geometry"]):
     dims = grid["topology"]["dims"]
     match grid["topology"]["type"]:
         case "3DCoRectMesh":
@@ -89,15 +127,8 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
                 "mlts": ("longs", np.linspace(0, 24, dims[1])),
             }
 
-    attrs = dict(
-        elapsed_time=meta["time"],
-        time=np.datetime64("2000-01-01T00:00:00"),  # FIXME
-    )
-
-    ds = xr.Dataset(vars, coords=coords, attrs=attrs)
-    #    ds.set_close(my_close_method)
-
-    return ds
+    coords["time"] = ("time", np.asarray(times))
+    return coords
 
 
 def make_crd(dim, origin, spacing):
