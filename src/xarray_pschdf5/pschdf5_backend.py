@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import pathlib
 from collections import OrderedDict
 from typing import Any, ClassVar
@@ -26,6 +27,9 @@ class PscHdf5Entrypoint(BackendEntrypoint):
     open_dataset_parameters: ClassVar[Any] = ["filename_or_obj", "drop_variables"]
 
     def guess_can_open(self, filename_or_obj) -> bool:
+        if not isinstance(filename_or_obj, str | os.PathLike):
+            return False
+
         filename_or_obj = pathlib.Path(filename_or_obj)
 
         return filename_or_obj.suffix == ".xdmf"
