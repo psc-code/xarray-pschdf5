@@ -4,21 +4,30 @@ import dataclasses
 import os
 import pathlib
 from collections import OrderedDict
+from collections.abc import Iterable
 from typing import Any, ClassVar
 
 import h5py
 import numpy as np
 import xarray as xr
 from pugixml import pugi
+from typing_extensions import override
 from xarray.backends import BackendEntrypoint
 
 
 class PscHdf5Entrypoint(BackendEntrypoint):
+    @override
     def open_dataset(
         self,
         filename_or_obj,
         *,
-        drop_variables=None,
+        mask_and_scale: bool = True,
+        decode_times: bool = True,
+        concat_characters: bool = True,
+        decode_coords: bool = True,
+        drop_variables: str | Iterable[str] | None = None,
+        use_cftime: bool | None = None,
+        decode_timedelta: bool | None = None,
         # other backend specific keyword arguments
         # `chunks` and `cache` DO NOT go here, they are handled by xarray
     ):
