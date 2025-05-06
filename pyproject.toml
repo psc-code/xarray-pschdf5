@@ -24,7 +24,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = ["pugixml >= 0.5.0", "h5py", "xarray"]
+dependencies = ["pugixml >= 0.5.0", "h5py", "xarray", "typing-extensions"]
 
 [project.optional-dependencies]
 test = ["pytest >=6", "pytest-cov >=3", "typing-extensions"]
@@ -59,12 +59,6 @@ sdist.include = ["src/xarray_pschdf5/_version.py"]
 
 [tool.setuptools_scm]
 write_to = "src/xarray_pschdf5/_version.py"
-
-
-[tool.cibuildwheel]
-test-command = "pytest {project}/tests"
-test-extras = ["test"]
-test-skip = ["*universal2:arm64"]
 
 
 [tool.pytest.ini_options]
