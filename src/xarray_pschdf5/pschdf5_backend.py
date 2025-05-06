@@ -13,25 +13,16 @@ import xarray as xr
 from pugixml import pugi
 from typing_extensions import override
 from xarray.backends import BackendEntrypoint
+from xarray.backends.common import AbstractDataStore
+from xarray.core.datatree import DataTree
+from xarray.core.types import ReadBuffer
 
 
 class PscHdf5Entrypoint(BackendEntrypoint):
-    @override
-    def open_dataset(
-        self,
-        filename_or_obj,
-        *,
-        mask_and_scale: bool = True,
-        decode_times: bool = True,
-        concat_characters: bool = True,
-        decode_coords: bool = True,
-        drop_variables: str | Iterable[str] | None = None,
-        use_cftime: bool | None = None,
-        decode_timedelta: bool | None = None,
-        # other backend specific keyword arguments
-        # `chunks` and `cache` DO NOT go here, they are handled by xarray
-    ):
-        return pschdf5_open_dataset(filename_or_obj, drop_variables=drop_variables)
+    """XArray backend entrypoint for PSC HDF5 data"""
+
+    description = "XArray reader for PSC HDF5 data"
+    # url = "https://link_to/your_backend/documentation"
 
     open_dataset_parameters: ClassVar[Any] = ["filename_or_obj", "drop_variables"]
 
@@ -43,9 +34,30 @@ class PscHdf5Entrypoint(BackendEntrypoint):
 
         return filename_or_obj.suffix == ".xdmf"
 
-    description = "XArray reader for PSC HDF5 data"
+    @override
+    def open_dataset(
+        self,
+        filename_or_obj,
+        *,
+        mask_and_scale: bool = True,  # pylint: disable=unused-argument
+        decode_times: bool = True,  # pylint: disable=unused-argument
+        concat_characters: bool = True,  # pylint: disable=unused-argument
+        decode_coords: bool = True,  # pylint: disable=unused-argument
+        drop_variables: str | Iterable[str] | None = None,
+        use_cftime: bool | None = None,  # pylint: disable=unused-argument
+        decode_timedelta: bool | None = None,  # pylint: disable=unused-argument
+        # other backend specific keyword arguments
+        # `chunks` and `cache` DO NOT go here, they are handled by xarray
+    ):
+        return pschdf5_open_dataset(filename_or_obj, drop_variables=drop_variables)
 
-    url = "https://link_to/your_backend/documentation"  # FIXME
+    @override
+    def open_datatree(
+        self,
+        filename_or_obj: str | os.PathLike[Any] | ReadBuffer[Any] | AbstractDataStore,
+        **kwargs: Any,
+    ) -> DataTree:
+        raise NotImplementedError()
 
 
 @dataclasses.dataclass
@@ -92,7 +104,7 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
     _, var_info = next(iter(var_infos.items()))
     coords = _make_coords(grid, var_info.times)
 
-    vars = {}
+    vars = {}  # pylint: disable=redefined-builtin
     for name, info in var_infos.items():
         da = xr.DataArray(data=np.empty(info.shape), dims=info.dims)
         for it, path in enumerate(info.paths):
@@ -106,7 +118,7 @@ def pschdf5_open_dataset(filename_or_obj, *, drop_variables=None):
     ds = xr.Dataset(vars, coords=coords, attrs=attrs)
     #    ds.set_close(my_close_method)
 
-    return ds
+    return ds  # noqa: RET504
 
 
 def _make_dims(fld):
@@ -154,7 +166,7 @@ def _parse_dimensions_attr(node):
 
 
 def _parse_geometry_origin_dxdydz(geometry):
-    geo = dict()
+    geo = {}
     for child in geometry.children():
         if child.attribute("Name").value() == "Origin":
             geo["origin"] = np.asarray(
@@ -169,20 +181,18 @@ def _parse_geometry_origin_dxdydz(geometry):
 
 
 def _parse_geometry_xyz(geometry):
-    geo = dict()
     data_item = geometry.child("DataItem")
     assert data_item.attribute("Format").value() == "XML"
     dims = _parse_dimensions_attr(data_item)
     data = np.loadtxt(data_item.text().as_string().splitlines())
-    geo = {"data_item": data.reshape(dims)}
-    return geo
+    return {"data_item": data.reshape(dims)}
 
 
 def _parse_temporal_collection(filename, grid_collection):
     temporal = []
     for node in grid_collection.children():
         href = node.attribute("href").value()
-        doc = pugi.XMLDocument()
+        doc = pugi.XMLDocument()  # pylint: disable=c-extension-no-member
         result = doc.load_file(filename.parent / href)
         if not result:
             msg = f"parse error: status={result.status} description={result.description()}"
@@ -240,10 +250,11 @@ def _parse_spatial_collection(grid_collection):
 
 
 def read_xdmf(filename):
-    doc = pugi.XMLDocument()
+    doc = pugi.XMLDocument()  # pylint: disable=c-extension-no-member
     result = doc.load_file(filename)
     if not result:
-        raise f"parse error: status={result.status} description={result.description()}"
+        msg = f"parse error: status={result.status} description={result.description()}"
+        raise RuntimeError(msg)
 
     grid_collection = doc.child("Xdmf").child("Domain").child("Grid")
     assert grid_collection.attribute("GridType").value() == "Collection"
